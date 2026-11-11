@@ -125,6 +125,15 @@
     }
     return null;
   }
+  // Taux de réussite en % + nombre de trades gagnants / total (ex. « 29,67 % 62/209 »)
+  function winsTrades(winPct, rawWin, totalTrades) {
+    const f = (rawWin || '').match(/(\d+)\s*\/\s*(\d+)/);
+    const trades = totalTrades ?? (f ? +f[2] : null);
+    let wins = f ? +f[1] : null;
+    if (wins == null && winPct != null && trades != null) wins = Math.round((winPct * trades) / 100);
+    const win = winPct ?? (wins != null && trades ? (wins / trades) * 100 : null);
+    return { win, wins, trades };
+  }
   function readMetrics() {
     const raw = {}, labels = {};
     for (const key of Object.keys(LABELS)) {
@@ -141,8 +150,7 @@
     return {
       net: net.v, netPct: net.pct,
       dd: dd.v != null ? Math.abs(dd.v) : null, ddPct: dd.pct != null ? Math.abs(dd.pct) : null,
-      win: win.pct ?? win.v, pf: pf.v,
-      trades: tr.v ?? (((raw.win || '').match(/(\d+)\s*\/\s*(\d+)/) || [])[2] ? +raw.win.match(/(\d+)\s*\/\s*(\d+)/)[2] : null),
+      ...winsTrades(win.pct ?? win.v, raw.win, tr.v), pf: pf.v,
       _sig: JSON.stringify(raw), _labels: labels
     };
   }
@@ -539,7 +547,7 @@
     out.push('', 'Fenêtre ouverte : ' + (d ? dialogTitle(d) : 'aucune'));
     if (d) getControls(d).forEach((c) => out.push(`  [${c.key}] ${c.group} › ${c.label} = ${c.value} (${c.type})`));
     const m = readMetrics();
-    out.push('', 'Métriques lues : ' + JSON.stringify({ net: m.net, netPct: m.netPct, dd: m.dd, ddPct: m.ddPct, win: m.win, pf: m.pf, trades: m.trades }));
+    out.push('', 'Métriques lues : ' + JSON.stringify({ net: m.net, netPct: m.netPct, dd: m.dd, ddPct: m.ddPct, win: m.win, wins: m.wins, pf: m.pf, trades: m.trades }));
     out.push('Libellés trouvés : ' + JSON.stringify(m._labels));
     out.push('Textes bruts : ' + m._sig);
     const b = document.querySelector('#bottom-area');

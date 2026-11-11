@@ -277,12 +277,22 @@ function vConfirm() {
   return h;
 }
 
-function metricCell(label, v, base, kind) {
-  const f = kind === 'pf' ? JAZ.fmt(v, 2) : kind === 'pct' ? (v == null ? '—' : JAZ.fmt(v, 2) + ' %') : JAZ.fmt(v, 2);
-  const b = base == null ? '' : `<span class="small">départ : ${kind === 'pct' ? JAZ.fmt(base, 2) + ' %' : JAZ.fmt(base, 2)}</span>`;
-  const cls = kind === 'dd' ? 'red' : v != null && v < 0 ? 'neg' : 'pos';
-  return `<div><span>${label}</span><b class="${cls}">${f}</b>${b}</div>`;
+// Montant + pourcentage pour profit net, drawdown et taux de réussite
+const money = (v) => (v == null ? '—' : JAZ.fmt(v, 2));
+const pctTxt = (v) => (v == null ? '—' : JAZ.fmt(v, 2) + ' %');
+const winsTxt = (m) => (m.wins != null && m.trades != null ? `${m.wins}/${m.trades} trades` : m.trades != null ? `${m.trades} trades` : '—');
+const MET = {
+  net: (m) => [money(m.net), pctTxt(m.netPct)],
+  dd: (m) => [money(m.dd), pctTxt(m.ddPct)],
+  win: (m) => [pctTxt(m.win), winsTxt(m)],
+  pf: (m) => [m.pf == null ? '—' : JAZ.fmt(m.pf, 3), '']
+};
+function metricCell(label, key, m, base) {
+  const [a, b] = MET[key](m || {}), [c, d] = MET[key](base || {});
+  const cls = key === 'dd' ? 'red' : (m?.net ?? 0) < 0 && key === 'net' ? 'neg' : 'pos';
+  return `<div><span>${label}</span><b class="${cls}">${a}</b><span class="small">${b}</span>${base ? `<span class="small muted">départ : ${c}${d ? ' · ' + d : ''}</span>` : ''}</div>`;
 }
+const two = (key, m, cls = '') => { const [a, b] = MET[key](m || {}); return `<span class="${cls}">${a}</span>${b ? `<div class="muted small">${b}</div>` : ''}`; };
 
 function vRun() {
   const r = S.run;
@@ -306,8 +316,8 @@ function vRun() {
       <div class="muted small">${r.cursor.val} / ${cur.values.length} valeurs pour ce paramètre</div></div>`;
   h += `<div class="card"><div class="muted small">Progression globale : ${r.done} / ${r.total} tests</div><div class="bar"><i style="width:${pct}%"></i></div>
     <div class="stats"><div><span>Écoulé</span><b>${JAZ.fmtDur(el)}</b></div><div><span>Vitesse</span><b>${sp ? (sp / 1000).toFixed(1) + ' s/test' : '—'}</b></div><div><span>Restant</span><b>${sp && live ? '~' + JAZ.fmtDur(sp * (r.total - r.done)) : '—'}</b></div></div></div>
-    <div class="card"><h3>Meilleur résultat actuel</h3><div class="stats four">
-      ${metricCell('Profit net', bm.net, b0.net)}${metricCell('Drawdown', bm.dd, b0.dd, 'dd')}${metricCell('Réussite', bm.win, b0.win, 'pct')}${metricCell('P. factor', bm.pf, b0.pf, 'pf')}</div></div>`;
+    <div class="card"><h3>Meilleur résultat actuel</h3><div class="stats two">
+      ${metricCell('Profit net', 'net', bm, b0)}${metricCell('Drawdown', 'dd', bm, b0)}${metricCell('Taux de réussite', 'win', bm, b0)}${metricCell('Profit factor', 'pf', bm, b0)}</div></div>`;
   if (r.chosen.length) h += `<div class="card"><h3>Paramètres terminés</h3><table>${r.chosen.map((c) => `<tr><td>${esc(c.label)}<div class="muted small">${esc(c.group)}</div></td><td class="r">${esc(fmtVal(c.before))} → <b class="blue">${esc(fmtVal(c.value))}</b>${c.kept ? ' <span class="muted small">(conservée)</span>' : ''}</td></tr>`).join('')}</table></div>`;
   h += `<p class="muted small">${esc(r.msg || '')}</p>`;
   if (live && status !== 'interrupted') h += `<p class="muted small">Vous pouvez fermer cette fenêtre : l'optimisation continue dans l'onglet TradingView (gardez-le ouvert).</p>`;
@@ -323,10 +333,10 @@ function vResults() {
   const r = S.view;
   if (!r) return `<div class="empty">Aucun résultat.</div>`;
   const a = r.best?.m || {}, b = r.baseline?.m || {};
-  const line = (l, x, y, d = 2, suf = '') => `<tr><td>${l}</td><td class="r">${x == null ? '—' : JAZ.fmt(x, d) + suf}</td><td class="r"><b class="blue">${y == null ? '—' : JAZ.fmt(y, d) + suf}</b></td></tr>`;
+  const line = (l, key) => `<tr><td>${l}</td><td class="r">${two(key, b)}</td><td class="r"><b>${two(key, a, 'blue')}</b></td></tr>`;
   let h = `<p>Stratégie : <b class="blue">${esc(r.strategy)}</b> <span class="muted small">· ${new Date(r.startedAt).toLocaleString('fr-FR')} · ${r.done} tests</span></p>
     <div class="card"><h3>Avant / après</h3><table><tr><th></th><th class="r">Avant</th><th class="r">Après</th></tr>
-      ${line('Profit net', b.net, a.net)}${line('Profit net %', b.netPct, a.netPct, 2, ' %')}${line('Drawdown', b.dd, a.dd)}${line('Drawdown %', b.ddPct, a.ddPct, 2, ' %')}${line('Taux de réussite', b.win, a.win, 2, ' %')}${line('Profit factor', b.pf, a.pf, 3)}${line('Trades', b.trades, a.trades, 0)}</table></div>
+      ${line('Profit net', 'net')}${line('Drawdown', 'dd')}${line('Taux de réussite', 'win')}${line('Profit factor', 'pf')}</table></div>
     <div class="card"><h3>Réglages retenus</h3><table><tr><th>Paramètre</th><th class="r">Avant</th><th class="r">Après</th></tr>
       ${r.config.steps.map((s) => { const x = r.initial?.[s.key], y = r.current?.[s.key], ch = String(x) !== String(y); return `<tr><td>${esc(s.label)}<div class="muted small">${esc(s.group)}</div></td><td class="r">${esc(fmtVal(x))}</td><td class="r">${ch ? `<b class="blue">${esc(fmtVal(y))}</b>` : esc(fmtVal(y))}</td></tr>`; }).join('')}</table></div>
     <h3 style="font-size:13px;margin:12px 0 8px">Détail des tests</h3>`;
@@ -337,8 +347,8 @@ function vResults() {
       const ch = r.chosen.find((c) => c.s === si && c.p === p);
       const sorted = list.slice().sort((x, y) => (JAZ.better(x, y) ? -1 : 1));
       h += `<details><summary><b>${esc(s.label)}</b> <span class="muted small">${esc(s.group)}${r.config.passes > 1 ? ' · passe ' + (p + 1) : ''} · ${list.length} tests · retenu : ${esc(fmtVal(ch?.value))}</span></summary><div><table>
-        <tr><th>Valeur</th><th class="r">Profit</th><th class="r">DD</th><th class="r">Réussite</th><th class="r">PF</th><th class="r">Trades</th></tr>
-        ${sorted.slice(0, 100).map((x) => `<tr class="${ch && String(ch.value) === String(x.v) ? 'best' : ''}"><td>${esc(fmtVal(x.v))}</td><td class="r ${x.m.net < 0 ? 'neg' : ''}">${JAZ.fmt(x.m.net)}</td><td class="r">${JAZ.fmt(x.m.dd)}</td><td class="r">${x.m.win == null ? '—' : JAZ.fmt(x.m.win) + ' %'}</td><td class="r">${JAZ.fmt(x.m.pf, 3)}</td><td class="r">${x.m.trades ?? '—'}</td></tr>`).join('')}
+        <tr><th>Valeur</th><th class="r">Profit net</th><th class="r">Drawdown</th><th class="r">Réussite</th><th class="r">PF</th></tr>
+        ${sorted.slice(0, 100).map((x) => `<tr class="${ch && String(ch.value) === String(x.v) ? 'best' : ''}"><td>${esc(fmtVal(x.v))}</td><td class="r">${two('net', x.m, x.m.net < 0 ? 'neg' : '')}</td><td class="r">${two('dd', x.m)}</td><td class="r">${two('win', x.m)}</td><td class="r">${JAZ.fmt(x.m.pf, 3)}</td></tr>`).join('')}
         </table>${sorted.length > 100 ? `<p class="muted small">… 100 meilleurs affichés sur ${sorted.length} (tout est dans l'export CSV).</p>` : ''}</div></details>`;
     }
   });
@@ -352,8 +362,8 @@ function vHistory() {
   if (!list.length) return `<div class="empty">Aucun résultat enregistré pour l'instant.</div>`;
   let h = '';
   list.forEach((r, i) => {
-    const b = r.baseline?.m?.net, a = r.best?.m?.net;
-    h += `<div class="row"><div style="min-width:0"><b>${esc(r.strategy)}</b><div class="muted small">${new Date(r.startedAt).toLocaleString('fr-FR')} · ${r.done} tests · ${r.status === 'done' ? 'terminée' : 'arrêtée'}</div><div class="small">Profit net : ${JAZ.fmt(b)} → <b class="blue">${JAZ.fmt(a)}</b></div></div><button class="btn sm primary" data-act="openHist" data-i="${i}">Voir</button></div>`;
+    const b = r.baseline?.m || {}, a = r.best?.m || {};
+    h += `<div class="row"><div style="min-width:0"><b>${esc(r.strategy)}</b><div class="muted small">${new Date(r.startedAt).toLocaleString('fr-FR')} · ${r.done} tests · ${r.status === 'done' ? 'terminée' : 'arrêtée'}</div><div class="small">Profit net : ${money(b.net)} (${pctTxt(b.netPct)}) → <b class="blue">${money(a.net)} (${pctTxt(a.netPct)})</b></div><div class="small">Drawdown : ${money(a.dd)} (${pctTxt(a.ddPct)}) · Réussite : ${pctTxt(a.win)} (${winsTxt(a)})</div></div><button class="btn sm primary" data-act="openHist" data-i="${i}">Voir</button></div>`;
   });
   h += `<div class="actions"><span></span><button class="btn sm ghost" data-act="clearHist">Effacer l'historique</button></div>`;
   return h;
@@ -432,10 +442,10 @@ function csvCell(v) {
   return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function exportCsv(r) {
-  const L = [['Passe', 'Indicateur', 'Paramètre', 'Valeur', 'Profit net', 'Profit net %', 'Drawdown', 'Drawdown %', 'Réussite %', 'Profit factor', 'Trades', 'Retenu'].join(';')];
+  const L = [['Passe', 'Indicateur', 'Paramètre', 'Valeur', 'Profit net', 'Profit net %', 'Drawdown', 'Drawdown %', 'Réussite %', 'Trades gagnants', 'Profit factor', 'Trades', 'Retenu'].join(';')];
   r.results.forEach((x) => {
     const s = r.config.steps[x.s], ch = r.chosen.find((c) => c.p === x.p && c.s === x.s);
-    L.push([x.p + 1, s.group, s.label, x.v, x.m.net, x.m.netPct, x.m.dd, x.m.ddPct, x.m.win, x.m.pf, x.m.trades, ch && String(ch.value) === String(x.v) ? 'oui' : ''].map(csvCell).join(';'));
+    L.push([x.p + 1, s.group, s.label, x.v, x.m.net, x.m.netPct, x.m.dd, x.m.ddPct, x.m.win, x.m.wins, x.m.pf, x.m.trades, ch && String(ch.value) === String(x.v) ? 'oui' : ''].map(csvCell).join(';'));
   });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + L.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
