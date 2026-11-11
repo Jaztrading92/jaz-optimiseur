@@ -208,9 +208,12 @@
     }
     return false;
   }
+  const UPDATING_RE = /updating report|mise à jour du rapport|calcul en cours|calculating|aktualisier|actualizando/i;
   function isLoading() {
     const scope = document.querySelector('#bottom-area') || document.body;
-    return [...scope.querySelectorAll('[class*="loader"],[class*="spinner"],[role="progressbar"],[aria-busy="true"]')].some(visible);
+    if ([...scope.querySelectorAll('[class*="loader"],[class*="spinner"],[role="progressbar"],[aria-busy="true"]')].some(visible)) return true;
+    // bandeau « Updating report… / Mise à jour du rapport… » du mode Deep Backtesting
+    return [...document.querySelectorAll('[data-qa-id*="snackbar"],[class*="snackbar"]')].some((s) => visible(s) && UPDATING_RE.test(norm(s.textContent)));
   }
   // TradingView n'affiche aucun signal « calcul en cours » : on mesure le temps de recalcul
   // réel de la stratégie et on attend toujours assez longtemps avant de conclure « résultat identique ».
@@ -229,7 +232,7 @@
       const m = readMetrics(), load = isLoading(), now = Date.now();
       if (m._sig !== lastSig || load !== lastLoad) { lastSig = m._sig; lastLoad = load; lastChange = now; }
       if (first == null && m._sig !== beforeSig) first = now - t0;
-      if (!load && now - lastChange >= OPTS.settleMs) {
+      if (!load && now - lastChange >= OPTS.settleMs && m.net != null) {   // jamais un rapport vide (en cours de calcul)
         if (m._sig !== beforeSig) {                               // résultat mis à jour et stable
           latencies.push(first ?? now - t0); if (latencies.length > 15) latencies.shift();
           return m;
@@ -487,8 +490,10 @@
   }
 
   function pickBest(list, crit, f) {
-    let pool = list.filter((r) => r.score > -Infinity);
-    const usable = pool.length ? pool : list.map((r) => ({ ...r, score: JAZ.rawScore(r.m, crit) }));
+    // scores recalculés (ceux relus du stockage peuvent valoir null) ; une valeur sans résultat ne peut pas gagner
+    const read = list.filter((r) => r.m && r.m.net != null).map((r) => ({ ...r, score: JAZ.score(r.m, crit, f) }));
+    let pool = read.filter((r) => r.score > -Infinity);
+    const usable = pool.length ? pool : read.map((r) => ({ ...r, score: JAZ.rawScore(r.m, crit) }));
     let best = null;
     for (const r of usable) if (JAZ.better(r, best)) best = r;
     return best;

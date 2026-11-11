@@ -318,7 +318,13 @@ function vRun() {
   if (cur && live) {
     const list = r.results.filter((x) => x.p === r.cursor.pass && x.s === r.cursor.step);
     if (list.length) {
-      let best = null; for (const x of list) if (JAZ.better(x, best)) best = x;
+      let best = null, bestS = null;
+      for (const x of list) {
+        if (!x.m || x.m.net == null) continue;
+        const s = { score: JAZ.score(x.m, r.config.criterion, r.config.filters), m: x.m };
+        if (JAZ.better(s, bestS)) { best = x; bestS = s; }
+      }
+      best = best || list[0];
       h += `<div class="card"><h3>Tests de « ${esc(cur.label)} » — meilleure valeur pour l'instant : <span class="blue">${esc(fmtVal(best.v))}</span></h3>
         <table><tr><th>Valeur</th><th class="r">Profit net</th><th class="r">Drawdown</th><th class="r">Réussite</th><th class="r">PF</th></tr>
         ${list.slice(-40).reverse().map((x) => `<tr class="${x === best ? 'best' : ''}"><td>${esc(fmtVal(x.v))}${x === best ? ' ★' : ''}</td><td class="r">${two('net', x.m, x.m.net < 0 ? 'neg' : '')}</td><td class="r">${two('dd', x.m)}</td><td class="r">${two('win', x.m)}</td><td class="r">${JAZ.fmt(x.m.pf, 3)}</td></tr>`).join('')}
@@ -356,7 +362,8 @@ function vResults() {
       const list = r.results.filter((x) => x.s === si && x.p === p);
       if (!list.length) continue;
       const ch = r.chosen.find((c) => c.s === si && c.p === p);
-      const sorted = list.slice().sort((x, y) => (JAZ.better(x, y) ? -1 : 1));
+      const sc = (x) => ({ score: x.m?.net == null ? -Infinity : JAZ.score(x.m, r.config.criterion, r.config.filters), m: x.m });
+      const sorted = list.slice().sort((x, y) => (JAZ.better(sc(x), sc(y)) ? -1 : 1));
       h += `<details><summary><b>${esc(s.label)}</b> <span class="muted small">${esc(s.group)}${r.config.passes > 1 ? ' · passe ' + (p + 1) : ''} · ${list.length} tests · retenu : ${esc(fmtVal(ch?.value))}</span></summary><div><table>
         <tr><th>Valeur</th><th class="r">Profit net</th><th class="r">Drawdown</th><th class="r">Réussite</th><th class="r">PF</th></tr>
         ${sorted.slice(0, 100).map((x) => `<tr class="${ch && String(ch.value) === String(x.v) ? 'best' : ''}"><td>${esc(fmtVal(x.v))}</td><td class="r">${two('net', x.m, x.m.net < 0 ? 'neg' : '')}</td><td class="r">${two('dd', x.m)}</td><td class="r">${two('win', x.m)}</td><td class="r">${JAZ.fmt(x.m.pf, 3)}</td></tr>`).join('')}
