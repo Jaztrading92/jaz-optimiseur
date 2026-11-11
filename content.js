@@ -415,7 +415,11 @@
   const ctl = { running: false, pause: false, stop: false };
   let ST = null;
   let saveT = 0;
+  // Après une mise à jour de l'extension, l'ancien script de la page perd le contact : il doit s'arrêter sans erreur
+  const alive = () => { try { return !!chrome.runtime?.id; } catch { return false; } };
+  class Orphan extends Error {}
   async function save(force) {
+    if (!alive()) throw new Orphan('extension mise à jour');
     const now = Date.now();
     if (!force && now - saveT < 400) return;
     saveT = now;
@@ -558,9 +562,10 @@
       const b = state.baseline?.m?.net, a = state.best?.m?.net;
       chrome.runtime.sendMessage({ type: 'notify', title: 'Optimisation terminée', message: `${state.strategy} : profit net ${JAZ.fmt(b)} → ${JAZ.fmt(a)}` }).catch(() => {});
     } catch (e) {
+      if (e instanceof Orphan || !alive()) return;   // ancienne version remplacée : arrêt silencieux
       state.status = 'error';
       state.error = e.message || String(e);
-      await save(true);
+      await save(true).catch(() => {});
     } finally {
       ctl.running = false;
     }
@@ -673,7 +678,7 @@
   // Porte de test : active seulement si localStorage.jaz_debug === '1' sur la page TradingView
   window.addEventListener('message', async (ev) => {
     const m = ev.data;
-    if (!m || !m.__jazReq) return;
+    if (!m || !m.__jazReq || !alive()) return;
     let dbg = false; try { dbg = localStorage.getItem('jaz_debug') === '1'; } catch { }
     if (!dbg) return;
     let res;
