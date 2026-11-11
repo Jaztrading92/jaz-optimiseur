@@ -9,15 +9,16 @@ Extension **Chrome** et **Microsoft Edge** qui optimise vos stratégies TradingV
 
 Aucun compte, aucun serveur : l'extension travaille directement dans votre onglet TradingView, avec votre session.
 
-## Installation (2 minutes)
+## Installation (2 minutes, une seule fois)
 
-1. Téléchargez **`JAZ-Optimiseur.zip`** dans la dernière [Release](../../releases/latest) et décompressez-le.
-2. Ouvrez la page des extensions :
+1. Téléchargez **`JAZ-Optimiseur.zip`** dans la dernière [Release](../../releases/latest) et décompressez-le **dans un dossier définitif** (par ex. `Documents\JAZ-Optimiseur`) : ne le supprimez plus ensuite.
+2. Dans ce dossier, double-cliquez sur **`Activer-mises-a-jour-auto.cmd`** : votre PC vérifiera GitHub toutes les heures et installera seul les nouvelles versions.
+3. Ouvrez la page des extensions :
    - Chrome : `chrome://extensions`
    - Edge : `edge://extensions`
-3. Activez **Mode développeur**.
-4. Cliquez sur **Charger l'extension non empaquetée** et choisissez le dossier décompressé `JAZ-Optimiseur` (celui qui contient `manifest.json`).
-5. Épinglez l'icône : bouton puzzle 🧩 → épingle 📌 à côté de *JAZ Trading FIMC*.
+4. Activez **Mode développeur**.
+5. Cliquez sur **Charger l'extension non empaquetée** et choisissez ce même dossier `JAZ-Optimiseur` (celui qui contient `manifest.json`).
+6. Épinglez l'icône : bouton puzzle 🧩 → épingle 📌 à côté de *JAZ Trading FIMC*.
 
 ## Utilisation
 
@@ -28,7 +29,9 @@ Aucun compte, aucun serveur : l'extension travaille directement dans votre ongle
 
 ## Mise à jour
 
-Quand une nouvelle version sort, l'icône affiche **MAJ**. Téléchargez le nouveau ZIP, remplacez le dossier, puis cliquez sur ↻ (Actualiser) sur la carte de l'extension dans `chrome://extensions`.
+**Automatique** : si vous avez lancé `Activer-mises-a-jour-auto.cmd`, chaque nouvelle version publiée ici est téléchargée par votre PC (vérification toutes les heures) et l'extension se recharge seule (jamais pendant une optimisation). Une notification « JAZ Optimiseur mis à jour » s'affiche.
+
+Pour désactiver : `powershell -ExecutionPolicy Bypass -File jaz-update.ps1 -Uninstall` dans le dossier de l'extension.
 
 ## En cas de problème
 

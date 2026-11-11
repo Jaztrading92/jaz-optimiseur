@@ -4,6 +4,7 @@ const JAZ_REPO = 'Jaztrading92/jaz-optimiseur';
 // Notification de fin d'optimisation
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg && msg.type === 'reload') { chrome.runtime.reload(); return; }
+  if (msg && msg.type === 'checkSelf') { checkSelf(); return; }
   if (msg && msg.type === 'notify') {
     chrome.notifications.create({
       type: 'basic',
@@ -38,9 +39,30 @@ async function checkUpdate() {
     }
   } catch { /* hors ligne : on réessaiera */ }
 }
-chrome.runtime.onStartup.addListener(checkUpdate);
-chrome.runtime.onInstalled.addListener(() => {
-  checkUpdate();
+// Mise à jour automatique : jaz-update.ps1 remplace les fichiers sur le disque,
+// l'extension le détecte (manifest.json du disque ≠ version chargée) et se recharge seule.
+async function checkSelf() {
+  try {
+    const disk = await (await fetch(chrome.runtime.getURL('manifest.json') + '?t=' + Date.now(), { cache: 'no-store' })).json();
+    const loaded = chrome.runtime.getManifest().version;
+    if (!disk.version || disk.version === loaded) return;
+    const run = (await chrome.storage.local.get('jaz_run')).jaz_run;
+    if (run && ['running', 'paused'].includes(run.status) && Date.now() - (run.updatedAt || 0) < 10 * 60e3) return; // jamais pendant une optimisation
+    await chrome.storage.local.set({ jaz_selfupdate: { from: loaded, to: disk.version, at: Date.now() } });
+    chrome.runtime.reload();
+  } catch { /* fichiers en cours de copie : on réessaiera */ }
+}
+function schedule() {
   chrome.alarms.create('jaz-update', { periodInMinutes: 360 });
+  chrome.alarms.create('jaz-self', { periodInMinutes: 5 });
+}
+chrome.runtime.onStartup.addListener(() => { schedule(); checkUpdate(); checkSelf(); });
+chrome.runtime.onInstalled.addListener(async (d) => {
+  schedule();
+  checkUpdate();
+  const su = (await chrome.storage.local.get('jaz_selfupdate')).jaz_selfupdate;
+  if (d.reason === 'update' && su && su.to === chrome.runtime.getManifest().version) {
+    chrome.notifications.create({ type: 'basic', iconUrl: 'icons/icon128.png', title: 'JAZ Optimiseur mis à jour', message: `Version ${su.from} → ${su.to}` });
+  }
 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'jaz-update') checkUpdate(); });
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'jaz-update') checkUpdate(); if (a.name === 'jaz-self') checkSelf(); });

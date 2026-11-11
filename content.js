@@ -393,6 +393,7 @@
     const now = Date.now();
     if (!force && now - saveT < 400) return;
     saveT = now;
+    ST.updatedAt = now;
     await chrome.storage.local.set({ jaz_run: ST });
   }
 
@@ -650,6 +651,8 @@
     let res;
     try {
       if (m.cmd === 'reloadExt') { chrome.runtime.sendMessage({ type: 'reload' }); res = { ok: true }; }
+      else if (m.cmd === 'checkSelf') { chrome.runtime.sendMessage({ type: 'checkSelf' }); res = { ok: true }; }
+      else if (m.cmd === 'get') res = { ok: true, ...(await chrome.storage.local.get(m.keys)) };
       else if (m.cmd === 'state') res = { ok: true, run: (await chrome.storage.local.get('jaz_run')).jaz_run, ctl };
       else if (m.cmd === 'setOpts') { await chrome.storage.local.set({ jaz_opts: m.opts }); res = { ok: true }; }
       else if (handlers[m.cmd]) res = { ok: true, ...(await handlers[m.cmd](m)) };
