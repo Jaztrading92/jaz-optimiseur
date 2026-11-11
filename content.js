@@ -166,13 +166,24 @@
   }
   // « Le rapport est obsolète — Mettre à jour » : TradingView ne recalcule qu'après ce clic (plages de dates longues, Deep Backtesting…)
   const STALE_RE = /obsol[eè]te|out of date|outdated|not up to date|veraltet|desactualizado/i;
-  const UPDATE_RE = /^(mettre à jour|mettre a jour|actualiser|update|refresh|update report|aktualisieren|actualizar|atualizar|aggiorna)$/i;
+  // Le texte du bouton peut être « Mettre à jour », « Mettre à jour le rapport », « Update report »… et pas forcément un <button>
+  const UPDATE_RE = /^(mettre [àa] jour|actualiser|rafra[iî]chir|update|refresh|recalculate|recalculer|aktualisieren|actualizar|atualizar|aggiorna)/i;
+  let lastStaleClick = 0;
   function clickStaleUpdate() {
-    for (const b of document.querySelectorAll('button,[role="button"]')) {
-      if (!UPDATE_RE.test(norm(b.textContent)) || !visible(b) || b.closest('[data-name="indicator-properties-dialog"]')) continue;
-      let p = b.parentElement;
-      for (let i = 0; i < 5 && p; i++, p = p.parentElement) {
-        if (STALE_RE.test(norm(p.textContent).slice(0, 200))) { realClick(b); return true; }
+    if (Date.now() - lastStaleClick < 800) return false;
+    // 1) on part du texte « obsolète » et on cherche le bouton à côté
+    for (const el of document.querySelectorAll('div,span,p')) {
+      if (el.childElementCount > 2 || !STALE_RE.test(ownText(el) || (el.childElementCount === 0 ? el.textContent : '')) || !visible(el)) continue;
+      if (el.closest('[data-name="indicator-properties-dialog"]')) continue;
+      let p = el.parentElement;
+      for (let i = 0; i < 8 && p; i++, p = p.parentElement) {
+        const cand = [...p.querySelectorAll('button,[role="button"],a,span,div')].find((b) => b !== el && visible(b) && UPDATE_RE.test(norm(b.textContent)) && norm(b.textContent).length < 40);
+        if (cand) {
+          const target = cand.closest('button,[role="button"],a') || cand;
+          realClick(target);
+          lastStaleClick = Date.now();
+          return true;
+        }
       }
     }
     return false;
@@ -565,6 +576,8 @@
     const m = readMetrics();
     out.push('', 'Métriques lues : ' + JSON.stringify({ net: m.net, netPct: m.netPct, dd: m.dd, ddPct: m.ddPct, win: m.win, wins: m.wins, pf: m.pf, trades: m.trades }));
     out.push('Libellés trouvés : ' + JSON.stringify(m._labels));
+    const stale = [...document.querySelectorAll('div,span,p')].filter((e) => e.childElementCount <= 2 && STALE_RE.test(ownText(e)));
+    stale.slice(0, 2).forEach((e) => { let b = e; for (let i = 0; i < 4 && b.parentElement; i++) b = b.parentElement; out.push('Message obsolète : ' + b.outerHTML.replace(/ class="[^"]*"/g, '').replace(/<svg[\s\S]*?<\/svg>/g, '').slice(0, 600)); });
     out.push('Textes bruts : ' + m._sig);
     const b = document.querySelector('#bottom-area');
     if (b) {
