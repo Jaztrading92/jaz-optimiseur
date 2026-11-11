@@ -69,7 +69,7 @@
   /* ================= Rapport de stratégie (métriques) ================= */
   const LABELS = {
     net: [/^(total\s*p\s*&?\s*n?\s*l|p\s*&?\s*n?\s*l\s*total|net\s*profit|profit\s*net|bénéfice\s*net|gain\s*net|résultat\s*net|total\s*profit)$/i],
-    dd: [/max.*drawdown|drawdown.*max/i, /aspiration\s*max/i, /(baisse|repli|perte)\s*max/i, /drawdown/i],
+    dd: [/max.*drawdown|drawdown.*max/i, /aspiration\s*max/i, /(baisse|repli|perte|retrait|recul)\s*max/i, /drawdown/i],
     win: [/^(profitable\s*trades|percent\s*profitable|win\s*rate)$/i, /(transactions|trades)\s*rentables|%\s*rentable|pourcentage\s*rentable|taux\s*de\s*réussite|gagnant/i, /profitable/i],
     pf: [/profit\s*factor|facteur\s*de\s*profit/i],
     trades: [/^total\s*(closed\s*)?trades$/i, /^(nombre\s*)?(total\s*)?(de\s*|des\s*)?(transactions|trades)(\s*total(es)?|\s*clôturée?s?|\s*fermée?s?)?$/i]
@@ -90,11 +90,16 @@
     out.push(document.body);
     return out;
   }
+  // Texte d'un libellé, y compris quand la traduction automatique de Chrome l'a enveloppé dans des balises <font>
+  const leafText = (el) => {
+    if (el.childElementCount === 0 || [...el.children].every((c) => c.tagName === 'FONT')) return norm(el.textContent);
+    return ownText(el);
+  };
   function findLabel(re, scope) {
     let hidden = null;
-    for (const el of scope.querySelectorAll('div,span,td,th,p,label,dt,dd,button')) {
+    for (const el of scope.querySelectorAll('div,span,td,th,p,label,dt,dd,button,font')) {
       if (el.childElementCount > 3) continue;
-      const t = ownText(el) || (el.childElementCount === 0 ? norm(el.textContent) : '');
+      const t = leafText(el);
       if (!t || t.length > 40 || !re.test(t)) continue;
       if (el.closest('[role="dialog"],[data-name="indicator-properties-dialog"]')) continue;
       if (visible(el)) return el;
@@ -171,16 +176,31 @@
   let lastStaleClick = 0;
   function clickStaleUpdate() {
     if (Date.now() - lastStaleClick < 800) return false;
+    // 0) repère exact de TradingView (bandeau « Le rapport est obsolète » du testeur de stratégie)
+    const direct = document.querySelector('[data-qa-id="backtesting-updated-report-snackbar"] [data-qa-id="ui-lib-snackbar-action-button"]');
+    if (direct && visible(direct)) {
+      realClick(direct);
+      window.__jazStale = { at: Date.now(), target: 'snackbar-action-button' };
+      lastStaleClick = Date.now();
+      return true;
+    }
     // 1) on part du texte « obsolète » et on cherche le bouton à côté
     for (const el of document.querySelectorAll('div,span,p')) {
-      if (el.childElementCount > 2 || !STALE_RE.test(ownText(el) || (el.childElementCount === 0 ? el.textContent : '')) || !visible(el)) continue;
+      if (el.childElementCount > 2 || !STALE_RE.test(leafText(el)) || !visible(el)) continue;
       if (el.closest('[data-name="indicator-properties-dialog"]')) continue;
       let p = el.parentElement;
       for (let i = 0; i < 8 && p; i++, p = p.parentElement) {
-        const cand = [...p.querySelectorAll('button,[role="button"],a,span,div')].find((b) => b !== el && visible(b) && UPDATE_RE.test(norm(b.textContent)) && norm(b.textContent).length < 40);
+        const isUpd = (b) => b !== el && visible(b) && UPDATE_RE.test(norm(b.textContent)) && norm(b.textContent).length < 40;
+        const cand = [...p.querySelectorAll('button,[role="button"],a')].find(isUpd) || [...p.querySelectorAll('span,div')].filter(isUpd).pop();
         if (cand) {
-          const target = cand.closest('button,[role="button"],a') || cand;
+          // vise le vrai bouton (pas un conteneur autour), puis l'élément réellement affiché à cet endroit
+          const target = cand.closest('button,[role="button"],a') || cand.querySelector('button,[role="button"],a') || cand;
+          const r = target.getBoundingClientRect();
+          const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          if (top && (target.contains(top) || top.contains(target))) realClick(top);
           realClick(target);
+          if (typeof target.click === 'function') target.click();
+          window.__jazStale = { at: Date.now(), target: target.outerHTML.replace(/ class="[^"]*"/g, '').slice(0, 300) };
           lastStaleClick = Date.now();
           return true;
         }
@@ -581,6 +601,7 @@
     const m = readMetrics();
     out.push('', 'Métriques lues : ' + JSON.stringify({ net: m.net, netPct: m.netPct, dd: m.dd, ddPct: m.ddPct, win: m.win, wins: m.wins, pf: m.pf, trades: m.trades }));
     out.push('Libellés trouvés : ' + JSON.stringify(m._labels));
+    out.push('Dernier clic « Mettre à jour » : ' + JSON.stringify(window.__jazStale || null));
     const stale = [...document.querySelectorAll('div,span,p')].filter((e) => e.childElementCount <= 2 && STALE_RE.test(ownText(e)));
     stale.slice(0, 2).forEach((e) => { let b = e; for (let i = 0; i < 4 && b.parentElement; i++) b = b.parentElement; out.push('Message obsolète : ' + b.outerHTML.replace(/ class="[^"]*"/g, '').replace(/<svg[\s\S]*?<\/svg>/g, '').slice(0, 600)); });
     out.push('Textes bruts : ' + m._sig);
