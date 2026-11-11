@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "JAZ Trading FIMC – Optimiseur de stratégies",
+  "short_name": "JAZ Optimiseur",
+  "version": "1.0.2",
+  "description": "Optimise vos stratégies TradingView paramètre par paramètre, indicateur par indicateur.",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "JAZ Optimiseur",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png" }
+  },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "unlimitedStorage", "tabs", "scripting", "notifications", "alarms"],
+  "host_permissions": ["https://*.tradingview.com/*", "https://api.github.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.tradingview.com/chart*", "https://tradingview.com/chart*"],
+      "js": ["shared.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
