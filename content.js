@@ -156,11 +156,25 @@
   }
   // Ouvre le panneau « Rapport de stratégie » s'il est replié
   async function ensureReport() {
+    if (clickStaleUpdate()) await sleep(1500);
     if (readMetrics().net != null) return true;
     const btn = document.querySelector('[data-qa-id="backtesting"],[data-name="backtesting"]') ||
       [...document.querySelectorAll('#bottom-area button,[class*="bottom"] button')].find((b) => /rapport de stratégie|strategy (tester|report)|backtest/i.test(b.getAttribute('aria-label') || b.textContent || ''));
     if (btn) realClick(btn);
     for (let i = 0; i < 40; i++) { await sleep(250); if (readMetrics().net != null) return true; }
+    return false;
+  }
+  // « Le rapport est obsolète — Mettre à jour » : TradingView ne recalcule qu'après ce clic (plages de dates longues, Deep Backtesting…)
+  const STALE_RE = /obsol[eè]te|out of date|outdated|not up to date|veraltet|desactualizado/i;
+  const UPDATE_RE = /^(mettre à jour|mettre a jour|actualiser|update|refresh|update report|aktualisieren|actualizar|atualizar|aggiorna)$/i;
+  function clickStaleUpdate() {
+    for (const b of document.querySelectorAll('button,[role="button"]')) {
+      if (!UPDATE_RE.test(norm(b.textContent)) || !visible(b) || b.closest('[data-name="indicator-properties-dialog"]')) continue;
+      let p = b.parentElement;
+      for (let i = 0; i < 5 && p; i++, p = p.parentElement) {
+        if (STALE_RE.test(norm(p.textContent).slice(0, 200))) { realClick(b); return true; }
+      }
+    }
     return false;
   }
   function isLoading() {
@@ -180,6 +194,7 @@
     let lastSig = readMetrics()._sig, lastChange = Date.now(), lastLoad = isLoading(), first = null;
     while (true) {
       await sleep(120);
+      if (clickStaleUpdate()) { lastChange = Date.now(); await sleep(300); continue; }   // force la mise à jour du rapport
       const m = readMetrics(), load = isLoading(), now = Date.now();
       if (m._sig !== lastSig || load !== lastLoad) { lastSig = m._sig; lastLoad = load; lastChange = now; }
       if (first == null && m._sig !== beforeSig) first = now - t0;

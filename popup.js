@@ -314,6 +314,17 @@ function vRun() {
       <span>Valeur testée</span><b class="blue">${esc(fmtVal(r.curValue))}</b></div>
       <div class="bar"><i style="width:${cur.values.length ? (r.cursor.val / cur.values.length) * 100 : 0}%"></i></div>
       <div class="muted small">${r.cursor.val} / ${cur.values.length} valeurs pour ce paramètre</div></div>`;
+  // Détail en direct de chaque valeur testée pour le paramètre en cours
+  if (cur && live) {
+    const list = r.results.filter((x) => x.p === r.cursor.pass && x.s === r.cursor.step);
+    if (list.length) {
+      let best = null; for (const x of list) if (JAZ.better(x, best)) best = x;
+      h += `<div class="card"><h3>Tests de « ${esc(cur.label)} » — meilleure valeur pour l'instant : <span class="blue">${esc(fmtVal(best.v))}</span></h3>
+        <table><tr><th>Valeur</th><th class="r">Profit net</th><th class="r">Drawdown</th><th class="r">Réussite</th><th class="r">PF</th></tr>
+        ${list.slice(-40).reverse().map((x) => `<tr class="${x === best ? 'best' : ''}"><td>${esc(fmtVal(x.v))}${x === best ? ' ★' : ''}</td><td class="r">${two('net', x.m, x.m.net < 0 ? 'neg' : '')}</td><td class="r">${two('dd', x.m)}</td><td class="r">${two('win', x.m)}</td><td class="r">${JAZ.fmt(x.m.pf, 3)}</td></tr>`).join('')}
+        </table>${list.length > 40 ? `<p class="muted small">40 derniers tests affichés sur ${list.length}.</p>` : ''}</div>`;
+    }
+  }
   h += `<div class="card"><div class="muted small">Progression globale : ${r.done} / ${r.total} tests</div><div class="bar"><i style="width:${pct}%"></i></div>
     <div class="stats"><div><span>Écoulé</span><b>${JAZ.fmtDur(el)}</b></div><div><span>Vitesse</span><b>${sp ? (sp / 1000).toFixed(1) + ' s/test' : '—'}</b></div><div><span>Restant</span><b>${sp && live ? '~' + JAZ.fmtDur(sp * (r.total - r.done)) : '—'}</b></div></div></div>
     <div class="card"><h3>Meilleur résultat actuel</h3><div class="stats two">
